@@ -54,24 +54,50 @@ app.get("/api/products/:id", async (req, res) => {
 });
 
 // Checkout: verify stock and return an order summary
+// Checkout: decrement stock and record the order — atomically
 app.post("/api/checkout", async (req, res) => {
   const { items } = req.body;
   if (!items || items.length === 0) {
     return res.status(400).json({ message: "Cart is empty" });
   }
+
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    // Total the order
+    const totalResult = await client.query(
       "SELECT SUM(price) AS total FROM products WHERE id = ANY($1)",
       [items]
     );
-    const total = Number(result.rows[0].total).toFixed(2);
-    res.json({ message: `Order placed! Total: $${total} for ${items.length} item(s).` });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Checkout failed" });
-  }
-});
+    const total = Number(totalResult.rows[0].total || 0).toFixed(2);
 
-app.listen(PORT, () => {
-  console.log(`ShopDock running on http://localhost:${PORT}`);
+    // Decrement stock for each purchased item, guarding against overselling
+    for (const id of items) {
+      const upd = await client.query(
+        "UPDATE products SET stock = stock - 1 WHERE id = $1 AND stock > 0 RETURNING id",
+        [id]
+      );
+      if (upd.rowCount === 0) {
+        throw new Error(`Product ${id} is out of stock`);
+      }
+    }
+
+    // Record the order
+    const order = await client.query(
+      "INSERT INTO orders (total, item_count) VALUES ($1, $2) RETURNING id",
+      [total, items.length]
+    );
+
+    await client.query("COMMIT");
+    res.json({
+      message: `Order #${order.rows[0].id} placed! Total: $${total} for ${items.length} item(s).`,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(400).json({ message: err.message || "Checkout failed" });
+  } finally {
+    client.release();
+  }
 });
