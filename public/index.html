@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShopDock</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>🛒 ShopDock</h1>
+    <div id="cart-summary">Cart: <span id="cart-count">0</span> items — $<span id="cart-total">0.00</span></div>
+  </header>
+
+  <main>
+    <section id="products">
+      <h2>Products</h2>
+      <div id="product-list" class="grid">Loading…</div>
+    </section>
+
+    <section id="cart">
+      <h2>Your Cart</h2>
+      <ul id="cart-items"></ul>
+      <button id="checkout-btn">Checkout</button>
+      <p id="checkout-msg"></p>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -5,7 +5,7 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 
 app.use(express.json());
-
+app.use(express.static("public"));
 // Database connection pool. Values come from environment variables,
 // with sensible defaults for local development.
 const pool = new Pool({
@@ -14,10 +14,6 @@ const pool = new Pool({
   user: process.env.DB_USER || "shop",
   password: process.env.DB_PASSWORD || "shoppass",
   database: process.env.DB_NAME || "shopdock",
-});
-
-app.get("/", (req, res) => {
-  res.send("<h1>ShopDock</h1><p>The store is running!</p>");
 });
 
 app.get("/health", async (req, res) => {
@@ -54,6 +50,25 @@ app.get("/api/products/:id", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Checkout: verify stock and return an order summary
+app.post("/api/checkout", async (req, res) => {
+  const { items } = req.body;
+  if (!items || items.length === 0) {
+    return res.status(400).json({ message: "Cart is empty" });
+  }
+  try {
+    const result = await pool.query(
+      "SELECT SUM(price) AS total FROM products WHERE id = ANY($1)",
+      [items]
+    );
+    const total = Number(result.rows[0].total).toFixed(2);
+    res.json({ message: `Order placed! Total: $${total} for ${items.length} item(s).` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Checkout failed" });
   }
 });
 
